@@ -26,7 +26,7 @@ import {
 const defaultSiteSettings: SiteSettings = {
   'theme.frontend': 'default',
   Notice: '',
-  SystemName: 'New API',
+  SystemName: 'C6C API',
   Logo: '',
   Footer: '',
   About: '',
