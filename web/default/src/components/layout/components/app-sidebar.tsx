@@ -38,7 +38,7 @@ import { NavGroup } from './nav-group'
  */
 export function AppSidebar() {
   const { t } = useTranslation()
-  const { collapsible, variant } = useLayout()
+  const { collapsible } = useLayout()
   const { pathname } = useLocation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const sidebarData = useSidebarData()
@@ -62,7 +62,7 @@ export function AppSidebar() {
   }, [configFilteredNavGroups, userRole])
 
   return (
-    <Sidebar collapsible={collapsible} variant={variant}>
+    <Sidebar collapsible={collapsible} variant="inset">
       <SidebarContent className='py-2'>
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
