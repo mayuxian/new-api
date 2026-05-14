@@ -64,7 +64,7 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
+        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md' style={{ width: 'auto'}}>
           <img
             src={logo}
             alt={t('Logo')}
