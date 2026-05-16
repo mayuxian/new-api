@@ -63,10 +63,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
 		constant.ChannelTypeSunoAPI,
-		constant.ChannelTypeKling,
-		constant.ChannelTypeJimeng,
-		constant.ChannelTypeDoubaoVideo,
-		constant.ChannelTypeVidu,
 	}
 	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
 		channelTypeName := constant.GetChannelTypeName(channel.Type)
@@ -122,6 +118,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/images/generations"
 		}
 
+		// 视频生成模型
+		if channel.Type == constant.ChannelTypeKling ||
+			channel.Type == constant.ChannelTypeJimeng ||
+			channel.Type == constant.ChannelTypeDoubaoVideo ||
+			channel.Type == constant.ChannelTypeVidu ||
+			channel.Type == constant.ChannelTypeSora {
+			requestPath = "/v1/video/generations"
+		}
+
 		// responses-only models
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
@@ -139,7 +144,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	c.Request = &http.Request{
 		Method: "POST",
 		URL:    &url.URL{Path: requestPath}, // 使用动态路径
-		Body:   nil,
+		Body:   io.NopCloser(bytes.NewReader(nil)),
 		Header: make(http.Header),
 	}
 
@@ -217,9 +222,12 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
 		}
+		if c.Request.URL.Path == "/v1/video/generations" {
+			relayFormat = types.RelayFormatTask
+		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel, isStream, requestPath)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -255,6 +263,70 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	testModel = info.UpstreamModelName
 	// 更新请求中的模型名称
 	request.SetModelName(testModel)
+
+	if info.RelayFormat == types.RelayFormatTask {
+		taskReq, ok := request.(*relaycommon.TaskSubmitReq)
+		if !ok {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid task request type"),
+				newAPIError: types.NewError(errors.New("invalid task request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+		c.Set("task_request", *taskReq)
+
+		taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channel.Type)))
+		if taskAdaptor == nil {
+			return testResult{
+				context:     c,
+				localErr:    fmt.Errorf("task adaptor not found for channel type %d", channel.Type),
+				newAPIError: types.NewError(fmt.Errorf("task adaptor not found for channel type %d", channel.Type), types.ErrorCodeInvalidApiType),
+			}
+		}
+		taskAdaptor.Init(info)
+
+		reqBody, err := taskAdaptor.BuildRequestBody(c, info)
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+			}
+		}
+
+		httpResp, err := taskAdaptor.DoRequest(c, info, reqBody)
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeDoRequestFailed),
+			}
+		}
+		defer httpResp.Body.Close()
+
+		if httpResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(httpResp.Body)
+			return testResult{
+				context:     c,
+				localErr:    fmt.Errorf("HTTP %d: %s", httpResp.StatusCode, string(body)),
+				newAPIError: types.NewError(fmt.Errorf("HTTP %d: %s", httpResp.StatusCode, string(body)), types.ErrorCodeDoRequestFailed),
+			}
+		}
+
+		_, _, errResp := taskAdaptor.DoResponse(c, httpResp, info)
+		if errResp != nil {
+			return testResult{
+				context:     c,
+				localErr:    errors.New(errResp.Message),
+				newAPIError: types.NewError(errors.New(errResp.Message), types.ErrorCodeDoRequestFailed),
+			}
+		}
+
+		// 返回成功
+		return testResult{
+			context: c,
+		}
+	}
 
 	apiType, _ := common.ChannelType2APIType(channel.Type)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
@@ -679,7 +751,7 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool, requestPath string) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
 	// 根据端点类型构建不同的测试请求
@@ -741,6 +813,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
 			return req
+		}
+	}
+
+	// Video generation models
+	if requestPath == "/v1/video/generations" {
+		return &relaycommon.TaskSubmitReq{
+			Model:  model,
+			Prompt: "hi",
 		}
 	}
 
