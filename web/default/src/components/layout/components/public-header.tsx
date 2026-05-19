@@ -134,9 +134,22 @@ export function PublicHeader(props: PublicHeaderProps) {
                   />
                 )}
               </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
-              </span>
+              <div className='flex flex-col items-center'>
+                <span className='text-sm font-semibold tracking-tight'>
+                  {loading ? (
+                    <Skeleton className='h-4 w-16' />
+                  ) : (
+                    displaySiteName
+                  )}
+                </span>
+                {!loading && systemLogo && (
+                  <img
+                    src={systemLogo.replace(/(\.[^.]+)$/, '-addr$1')}
+                    alt='Site Name Logo'
+                    className='h-4 object-contain mt-0.5'
+                  />
+                )}
+              </div>
             </Link>
 
             {/* Desktop nav */}
