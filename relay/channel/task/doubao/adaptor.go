@@ -331,14 +331,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-	// 如果后端设置了自定义的服务器地址，则替换为通过服务器代理下载视频
-	if system_setting.ServerAddress != "" && resTask.Content.VideoURL != "" {
-		// 这里无法直接获取 info，所以我们根据响应报文里的 task id 进行拼接。
-		// 注意这里用 EncodeLocalTaskID 防止带特殊字符，具体要看您的设计。
-		taskResult.Url = taskcommon.BuildProxyURL(taskcommon.EncodeLocalTaskID(resTask.ID))
-	} else {
 		taskResult.Url = resTask.Content.VideoURL
-	}
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
@@ -366,7 +359,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	if system_setting.ServerAddress != "" && dResp.Content.VideoURL != "" {
+		openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+	} else {
+		openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName

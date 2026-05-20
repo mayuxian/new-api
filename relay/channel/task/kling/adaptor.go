@@ -25,6 +25,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 // ============================
@@ -392,7 +393,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	if len(klingResp.Data.TaskResult.Videos) > 0 {
 		video := klingResp.Data.TaskResult.Videos[0]
 		if video.Url != "" {
-			openAIVideo.SetMetadata("url", video.Url)
+			if system_setting.ServerAddress != "" {
+				openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+			} else {
+				openAIVideo.SetMetadata("url", video.Url)
+			}
 		}
 		if video.Duration != "" {
 			openAIVideo.Seconds = video.Duration

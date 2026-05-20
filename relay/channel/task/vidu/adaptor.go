@@ -18,6 +18,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/pkg/errors"
 )
@@ -286,7 +287,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 
 	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
-		openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
+		if system_setting.ServerAddress != "" {
+			openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+		} else {
+			openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
+		}
 	}
 
 	if viduResp.State == "failed" && viduResp.ErrCode != "" {
