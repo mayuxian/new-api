@@ -356,7 +356,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskInfo.Status = model.TaskStatusSuccess
 		if videos := resPayload.Data.TaskResult.Videos; len(videos) > 0 {
 			video := videos[0]
-			taskInfo.Url = video.Url
+			taskInfo.Url = taskcommon.ReplaceURLHost(video.Url)
 		}
 		if tokens, err := strconv.ParseFloat(resPayload.Data.FinalUnitDeduction, 64); err == nil {
 			rounded := int(math.Ceil(tokens))
@@ -394,7 +394,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		video := klingResp.Data.TaskResult.Videos[0]
 		if video.Url != "" {
 			if system_setting.ServerAddress != "" {
-				openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+				openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(video.Url))
 			} else {
 				openAIVideo.SetMetadata("url", video.Url)
 			}

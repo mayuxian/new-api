@@ -468,8 +468,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "SUCCEEDED":
 		taskResult.Status = model.TaskStatusSuccess
-		// 阿里直接返回视频URL，不需要额外的代理端点
-		taskResult.Url = aliResp.Output.VideoURL
+		taskResult.Url = taskcommon.ReplaceURLHost(aliResp.Output.VideoURL)
 	case "FAILED", "CANCELED", "UNKNOWN":
 		taskResult.Status = model.TaskStatusFailure
 		if aliResp.Message != "" {
@@ -501,7 +500,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIResp.CompletedAt = task.UpdatedAt
 
 	// 设置视频URL（核心字段）
-	openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
+	openAIResp.SetMetadata("url", taskcommon.ReplaceURLHost(aliResp.Output.VideoURL))
 
 	// 错误处理
 	if aliResp.Code != "" {

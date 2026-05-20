@@ -259,7 +259,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "success":
 		taskInfo.Status = model.TaskStatusSuccess
 		if len(taskResp.Creations) > 0 {
-			taskInfo.Url = taskResp.Creations[0].URL
+			taskInfo.Url = taskcommon.ReplaceURLHost(taskResp.Creations[0].URL)
 		}
 	case "failed":
 		taskInfo.Status = model.TaskStatusFailure
@@ -288,7 +288,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
 		if system_setting.ServerAddress != "" {
-			openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+			openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(viduResp.Creations[0].URL))
 		} else {
 			openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
 		}

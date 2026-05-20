@@ -208,7 +208,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case TaskStatusSuccess:
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		taskResult.Url = a.buildVideoURL(resTask.TaskID, resTask.FileID)
+		taskResult.Url = taskcommon.ReplaceURLHost(a.buildVideoURL(resTask.TaskID, resTask.FileID))
 	case TaskStatusFailed:
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"

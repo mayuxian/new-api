@@ -448,7 +448,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
 	}
-	taskResult.Url = resTask.Data.VideoUrl
+	taskResult.Url = taskcommon.ReplaceURLHost(resTask.Data.VideoUrl)
 	return &taskResult, nil
 }
 
@@ -463,7 +463,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	if system_setting.ServerAddress != "" && jimengResp.Data.VideoUrl != "" {
-		openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+		openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(jimengResp.Data.VideoUrl))
 	} else {
 		openAIVideo.SetMetadata("url", jimengResp.Data.VideoUrl)
 	}
