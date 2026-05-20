@@ -331,7 +331,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		taskResult.Url = resTask.Content.VideoURL
+		taskResult.Url = taskcommon.ReplaceURLHost(resTask.Content.VideoURL)
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
@@ -360,7 +360,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	if system_setting.ServerAddress != "" && dResp.Content.VideoURL != "" {
-		openAIVideo.SetMetadata("url", taskcommon.BuildProxyURL(originTask.TaskID))
+		openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(dResp.Content.VideoURL))
 	} else {
 		openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
 	}

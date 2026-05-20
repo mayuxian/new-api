@@ -3,6 +3,7 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -64,6 +65,26 @@ func DecodeLocalTaskID(id string) (string, error) {
 // e.g., "https://your-server.com/v1/videos/task_xxxx/content"
 func BuildProxyURL(taskID string) string {
 	return fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+}
+
+// ReplaceURLHost replaces the scheme+host of originalURL with the scheme+host
+// from ServerAddress, keeping path and query params unchanged.
+// If ServerAddress is empty or parsing fails, returns the original URL as-is.
+func ReplaceURLHost(originalURL string) string {
+	if system_setting.ServerAddress == "" || originalURL == "" {
+		return originalURL
+	}
+	serverParsed, err := url.Parse(system_setting.ServerAddress)
+	if err != nil || serverParsed.Host == "" {
+		return originalURL
+	}
+	origParsed, err := url.Parse(originalURL)
+	if err != nil {
+		return originalURL
+	}
+	origParsed.Scheme = serverParsed.Scheme
+	origParsed.Host = serverParsed.Host
+	return origParsed.String()
 }
 
 // Status-to-progress mapping constants for polling updates.
