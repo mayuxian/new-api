@@ -477,7 +477,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		}
 	}
 
-	return common.Marshal(openAIVideo)
+	resultBytes, err := common.Marshal(openAIVideo)
+	if err == nil {
+		common.SysLog(fmt.Sprintf("[JimengVideoProxy] TaskID: %s, Origin URL: %s, Proxied URL: %s",
+			originTask.TaskID, jimengResp.Data.VideoUrl, openAIVideo.Metadata["url"]))
+	}
+
+	return resultBytes, nil
 }
 
 func isNewAPIRelay(apiKey string) bool {

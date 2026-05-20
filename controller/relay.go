@@ -116,6 +116,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		return
 	}
+	
+	if common.DebugEnabled {
+		bodyStorage, _ := common.GetBodyStorage(c)
+		if len(bodyStorage) > 0 {
+			common.SysLog(fmt.Sprintf("[GlobalDebug] Original Client Request Payload: %s", string(bodyStorage)))
+		}
+	}
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {

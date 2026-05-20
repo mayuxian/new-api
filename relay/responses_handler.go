@@ -103,7 +103,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 
 		if common.DebugEnabled {
+			// debug request body
 			println("requestBody: ", string(jsonData))
+			common.SysLog(fmt.Sprintf("[GlobalDebug] Transformed Request Payload (OpenAI Responses): %s", string(jsonData)))
 		}
 		requestBody = bytes.NewBuffer(jsonData)
 	}

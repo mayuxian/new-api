@@ -375,5 +375,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		}
 	}
 
-	return common.Marshal(openAIVideo)
+	resultBytes, err := common.Marshal(openAIVideo)
+	if err == nil {
+		common.SysLog(fmt.Sprintf("[DoubaoVideoProxy] TaskID: %s, Origin URL: %s, Proxied URL: %s",
+			originTask.TaskID, dResp.Content.VideoURL, openAIVideo.Metadata["url"]))
+		common.SysLog(fmt.Sprintf("[DoubaoVideoProxy] Source Payload: %s", string(originTask.Data)))
+		common.SysLog(fmt.Sprintf("[DoubaoVideoProxy] Output Payload: %s", string(resultBytes)))
+	}
+
+	return resultBytes, nil
 }

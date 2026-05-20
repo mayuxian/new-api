@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -481,6 +482,13 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 }
 
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	if common2.DebugEnabled {
+		if req.Body != nil {
+			bodyBytes, _ := io.ReadAll(req.Body)
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			common2.SysLog(fmt.Sprintf("[GlobalDebug] Transformed Request Payload (to %s): %s", req.URL.String(), string(bodyBytes)))
+		}
+	}
 	return doRequest(c, req, info)
 }
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
@@ -522,6 +530,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+
+	if common2.DebugEnabled {
+		if resp.Body != nil {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			common2.SysLog(fmt.Sprintf("[GlobalDebug] Raw Response Payload (from %s): %s", req.URL.String(), string(bodyBytes)))
+		}
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
