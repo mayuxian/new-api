@@ -21,6 +21,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      shm_size: '1gb'
+    mem_limit: 2g  # 限制内存 2G
     image: new-api:v1.0.0
     container_name: new-api
     restart: always
