@@ -9,6 +9,8 @@ ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 ENV GOEXPERIMENT=greenteagc
+# 国内环境则配置代理，从goproxy.cn下载依赖，国外环境则无需处理
+# ENV GOPROXY=https://goproxy.cn,direct  
 
 WORKDIR /build
 
