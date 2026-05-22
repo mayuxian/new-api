@@ -68,13 +68,14 @@ func BuildProxyURL(taskID string) string {
 }
 
 // ReplaceURLHost replaces the scheme+host of originalURL with the scheme+host
-// from ServerAddress, keeping path and query params unchanged.
-// If ServerAddress is empty or parsing fails, returns the original URL as-is.
+// from RedirectDownloadUrl (if set), keeping path and query params unchanged.
+// If both are empty or parsing fails, returns the original URL as-is.
 func ReplaceURLHost(originalURL string) string {
-	if system_setting.ServerAddress == "" || originalURL == "" {
+	baseURL := system_setting.RedirectDownloadUrl
+	if baseURL == "" || originalURL == "" {
 		return originalURL
 	}
-	serverParsed, err := url.Parse(system_setting.ServerAddress)
+	serverParsed, err := url.Parse(baseURL)
 	if err != nil || serverParsed.Host == "" {
 		return originalURL
 	}

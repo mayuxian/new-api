@@ -53,6 +53,7 @@ const _systemInfoSchema = z.object({
   }),
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
+  RedirectDownloadUrl: z.string().optional(),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
   About: z.string().optional(),
@@ -85,6 +86,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     },
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
+    RedirectDownloadUrl: normalizeValue(defaultValues.RedirectDownloadUrl),
     Logo: normalizeValue(defaultValues.Logo),
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
@@ -103,6 +105,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       error: () => t('System name is required'),
     }),
     ServerAddress: z.string().optional(),
+    RedirectDownloadUrl: z.string().optional(),
     Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
@@ -124,7 +127,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
-          if (key === 'ServerAddress') {
+          if (key === 'ServerAddress' || key === 'RedirectDownloadUrl') {
             v = v.replace(/\/+$/, '')
           }
           await updateOption.mutateAsync({
@@ -218,6 +221,25 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   <FormDescription>
                     {t(
                       'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='RedirectDownloadUrl'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Redirect Download URL')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder='https://cdn.yourdomain.com' {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'If set, this URL will be used to replace the server address when returning download URLs (e.g., for video/image generation tasks)'
                     )}
                   </FormDescription>
                   <FormMessage />
