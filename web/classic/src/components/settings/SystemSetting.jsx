@@ -101,6 +101,7 @@ const SystemSetting = () => {
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
     ServerAddress: '',
+    RedirectDownloadUrl: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
     'fetch_setting.allow_private_ip': '',
@@ -316,7 +317,11 @@ const SystemSetting = () => {
 
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
-    await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+    let RedirectDownloadUrl = removeTrailingSlash(inputs.RedirectDownloadUrl);
+    await updateOptions([
+      { key: 'ServerAddress', value: ServerAddress },
+      { key: 'RedirectDownloadUrl', value: RedirectDownloadUrl }
+    ]);
   };
 
   const submitSMTP = async () => {
@@ -725,6 +730,16 @@ const SystemSetting = () => {
                         placeholder='https://yourdomain.com'
                         extraText={t(
                           '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',
+                        )}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='RedirectDownloadUrl'
+                        label={t('重定向下载地址')}
+                        placeholder='https://cdn.yourdomain.com'
+                        extraText={t(
+                          '如果设置了此地址，在返回诸如视频/图像生成任务的下载链接时，将优先使用此地址替换服务器地址',
                         )}
                       />
                     </Col>
