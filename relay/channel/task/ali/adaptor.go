@@ -500,7 +500,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIResp.CompletedAt = task.UpdatedAt
 
 	// 设置视频URL（核心字段）
-	openAIResp.SetMetadata("url", taskcommon.ReplaceURLHost(aliResp.Output.VideoURL))
+	if aliResp.Output.VideoURL != "" {
+		if system_setting.RedirectDownloadUrl != "" {
+			openAIResp.SetMetadata("url", taskcommon.ReplaceURLHost(aliResp.Output.VideoURL))
+		} else {
+			openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
+		}
+	}
 
 	// 错误处理
 	if aliResp.Code != "" {

@@ -287,9 +287,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 
 	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
-		if system_setting.ServerAddress != "" {
-			openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(viduResp.Creations[0].URL))
-		} else {
+			if system_setting.RedirectDownloadUrl != "" {
+				openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(viduResp.Creations[0].URL))
+			} else {
 			openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
 		}
 	}

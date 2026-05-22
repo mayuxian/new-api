@@ -462,7 +462,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	if system_setting.ServerAddress != "" && jimengResp.Data.VideoUrl != "" {
+	if system_setting.RedirectDownloadUrl != "" && jimengResp.Data.VideoUrl != "" {
 		openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(jimengResp.Data.VideoUrl))
 	} else {
 		openAIVideo.SetMetadata("url", jimengResp.Data.VideoUrl)

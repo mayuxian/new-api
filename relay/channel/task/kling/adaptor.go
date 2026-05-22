@@ -393,7 +393,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	if len(klingResp.Data.TaskResult.Videos) > 0 {
 		video := klingResp.Data.TaskResult.Videos[0]
 		if video.Url != "" {
-			if system_setting.ServerAddress != "" {
+			if system_setting.RedirectDownloadUrl != "" {
 				openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(video.Url))
 			} else {
 				openAIVideo.SetMetadata("url", video.Url)
