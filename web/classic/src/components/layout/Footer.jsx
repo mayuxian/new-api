@@ -57,6 +57,13 @@ const FooterBar = () => {
     </Typography.Text>
   );
 
+  const contactInfo = (
+    <div className='flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm !text-semi-color-text-1 mb-1'>
+      <span>{t('Phone')}：+1 6266931487</span>
+      <span>{t('Email')}：support@c6c.ai</span>
+    </div>
+  );
+
   const customFooter = useMemo(
     () => (
       <footer className='relative h-auto py-16 px-6 md:px-24 w-full flex flex-col items-center justify-between overflow-hidden'>
@@ -209,12 +216,13 @@ const FooterBar = () => {
           {legalLinks}
 
           <div className='flex flex-col items-center md:items-end gap-2'>
+            {contactInfo}
             {copyrightNotice}
           </div>
         </div>
       </footer>
     ),
-    [logo, systemName, t, currentYear, isDemoSiteMode, legalLinks, copyrightNotice],
+    [logo, systemName, t, currentYear, isDemoSiteMode, legalLinks, copyrightNotice, contactInfo],
   );
 
   useEffect(() => {
@@ -232,6 +240,7 @@ const FooterBar = () => {
             ></div>
             <div className='flex flex-col items-center md:items-end gap-2 flex-shrink-0'>
               {legalLinks}
+              {contactInfo}
               {copyrightNotice}
             </div>
           </div>

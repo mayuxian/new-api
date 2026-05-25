@@ -89,6 +89,17 @@ function LegalLinks() {
   )
 }
 
+function ContactInfo() {
+  const { t } = useTranslation()
+
+  return (
+    <div className='text-muted-foreground/60 flex flex-col items-center gap-1 text-xs sm:flex-row sm:gap-4'>
+      <span>{t('Phone')}: +1 6266931487</span>
+      <span>{t('Email')}: support@c6c.ai</span>
+    </div>
+  )
+}
+
 function CopyrightNotice(props: { currentYear: number }) {
   const { t } = useTranslation()
 
@@ -188,6 +199,7 @@ export function Footer(props: FooterProps) {
             />
             <div className='border-border/60 flex w-full flex-col items-center gap-3 border-t pt-4 sm:w-auto sm:items-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
               <LegalLinks />
+              <ContactInfo />
               <CopyrightNotice currentYear={currentYear} />
             </div>
           </div>
@@ -244,6 +256,7 @@ export function Footer(props: FooterProps) {
         <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-3 border-t pt-6 sm:flex-row'>
           <LegalLinks />
           <div className='flex flex-col items-center gap-2 sm:items-end'>
+            <ContactInfo />
             <CopyrightNotice currentYear={currentYear} />
           </div>
         </div>
