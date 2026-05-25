@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import { cn } from '@/lib/utils'
 
 interface MarkdownProps {
@@ -48,7 +49,7 @@ export function Markdown({ children, className }: MarkdownProps) {
       )}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[rehypeRaw]}
         components={{
           // 自定义组件渲染（可选）
