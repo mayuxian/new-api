@@ -58,7 +58,7 @@ const FooterBar = () => {
   );
 
   const contactInfo = (
-    <div className='flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm !text-semi-color-text-1 mb-1'>
+    <div className='flex flex-col md:flex-row items-center gap-2 md:gap-4 text-sm !text-semi-color-text-1'>
       <span>{t('Phone')}：+1 6266931487</span>
       <span>{t('Email')}：support@c6c.ai</span>
     </div>
@@ -215,7 +215,7 @@ const FooterBar = () => {
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
           {legalLinks}
 
-          <div className='flex flex-col items-center md:items-end gap-2'>
+          <div className='flex flex-col items-center md:flex-row md:items-center gap-2 md:gap-4'>
             {contactInfo}
             {copyrightNotice}
           </div>
@@ -240,8 +240,10 @@ const FooterBar = () => {
             ></div>
             <div className='flex flex-col items-center md:items-end gap-2 flex-shrink-0'>
               {legalLinks}
-              {contactInfo}
-              {copyrightNotice}
+              <div className='flex flex-col items-center md:flex-row md:items-center gap-2 md:gap-4'>
+                {contactInfo}
+                {copyrightNotice}
+              </div>
             </div>
           </div>
         </footer>
