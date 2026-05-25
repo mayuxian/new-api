@@ -40,12 +40,6 @@ interface FooterProps {
   className?: string
 }
 
-const NEW_API_FOOTER_ATTRIBUTION_KEY = [
-  'footer',
-  'new' + 'api',
-  'projectAttributionSuffix',
-].join('.')
-
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
   const isExternal = props.link.href.startsWith('http')
@@ -74,24 +68,34 @@ function FooterLinkItem(props: { link: FooterLink }) {
   )
 }
 
-function ProjectAttribution(props: { currentYear: number }) {
+function LegalLinks() {
   const { t } = useTranslation()
 
   return (
-    <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
-      <span className='text-muted-foreground/45'>
-        &copy; {props.currentYear}{' '}
-        <a
-          href='https://github.com/QuantumNous/new-api'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-foreground/70 hover:text-foreground font-medium transition-colors'
-        >
-          {t('C6C API')}
-        </a>
-        . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
-      </span>
+    <div className='flex items-center justify-center gap-4 text-xs sm:justify-start'>
+      <Link
+        to='/privacy-policy'
+        className='text-muted-foreground/60 hover:text-foreground transition-colors'
+      >
+        {t('隐私协议')}
+      </Link>
+      <Link
+        to='/user-agreement'
+        className='text-muted-foreground/60 hover:text-foreground transition-colors'
+      >
+        {t('服务条款')}
+      </Link>
     </div>
+  )
+}
+
+function CopyrightNotice(props: { currentYear: number }) {
+  const { t } = useTranslation()
+
+  return (
+    <p className='text-muted-foreground/40 text-xs'>
+      &copy; {props.currentYear} C6C.AI {t('All rights reserved.')}
+    </p>
   )
 }
 
@@ -182,8 +186,9 @@ export function Footer(props: FooterProps) {
               className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-left'
               dangerouslySetInnerHTML={{ __html: footerHtml }}
             />
-            <div className='border-border/60 w-full border-t pt-4 sm:w-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
-              <ProjectAttribution currentYear={currentYear} />
+            <div className='border-border/60 flex w-full flex-col items-center gap-3 border-t pt-4 sm:w-auto sm:items-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
+              <LegalLinks />
+              <CopyrightNotice currentYear={currentYear} />
             </div>
           </div>
         </div>
@@ -237,11 +242,10 @@ export function Footer(props: FooterProps) {
 
         {/* Bottom section */}
         <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-3 border-t pt-6 sm:flex-row'>
-          <p className='text-muted-foreground/40 text-xs'>
-            &copy; {currentYear} {displayName}.{' '}
-            {props.copyright ?? t('footer.defaultCopyright')}
-          </p>
-          <ProjectAttribution currentYear={currentYear} />
+          <LegalLinks />
+          <div className='flex flex-col items-center gap-2 sm:items-end'>
+            <CopyrightNotice currentYear={currentYear} />
+          </div>
         </div>
       </div>
     </footer>

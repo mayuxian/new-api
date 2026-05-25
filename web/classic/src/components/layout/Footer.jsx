@@ -40,6 +40,23 @@ const FooterBar = () => {
 
   const currentYear = new Date().getFullYear();
 
+  const legalLinks = (
+    <div className='flex items-center justify-center md:justify-start gap-4 text-sm'>
+      <a href='/privacy-policy' className='!text-semi-color-text-1'>
+        {t('隐私协议')}
+      </a>
+      <a href='/user-agreement' className='!text-semi-color-text-1'>
+        {t('服务条款')}
+      </a>
+    </div>
+  );
+
+  const copyrightNotice = (
+    <Typography.Text className='text-sm !text-semi-color-text-1'>
+      © {currentYear} C6C.AI {t('All rights reserved.')}
+    </Typography.Text>
+  );
+
   const customFooter = useMemo(
     () => (
       <footer className='relative h-auto py-16 px-6 md:px-24 w-full flex flex-col items-center justify-between overflow-hidden'>
@@ -189,29 +206,15 @@ const FooterBar = () => {
         )}
 
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Typography.Text className='text-sm !text-semi-color-text-1'>
-              © {currentYear} {systemName}. {t('版权所有')}
-            </Typography.Text>
-          </div>
+          {legalLinks}
 
-          <div className='text-sm'>
-            <span className='!text-semi-color-text-1'>
-              {t('设计与开发由')}{' '}
-            </span>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
-            >
-              C6C API
-            </a>
+          <div className='flex flex-col items-center md:items-end gap-2'>
+            {copyrightNotice}
           </div>
         </div>
       </footer>
     ),
-    [logo, systemName, t, currentYear, isDemoSiteMode],
+    [logo, systemName, t, currentYear, isDemoSiteMode, legalLinks, copyrightNotice],
   );
 
   useEffect(() => {
@@ -227,18 +230,9 @@ const FooterBar = () => {
               className='custom-footer na-cb6feafeb3990c78 text-sm !text-semi-color-text-1'
               dangerouslySetInnerHTML={{ __html: footer }}
             ></div>
-            <div className='text-sm flex-shrink-0'>
-              <span className='!text-semi-color-text-1'>
-                {t('设计与开发由')}{' '}
-              </span>
-              <a
-                href='https://github.com/QuantumNous/new-api'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='!text-semi-color-primary font-medium'
-              >
-                C6C API
-              </a>
+            <div className='flex flex-col items-center md:items-end gap-2 flex-shrink-0'>
+              {legalLinks}
+              {copyrightNotice}
             </div>
           </div>
         </footer>
