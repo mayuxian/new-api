@@ -122,10 +122,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if strings.Contains(info.OriginModelName, "seedance") || strings.Contains(a.baseURL, "qreel.ai") {
-		return fmt.Sprintf("%s/api/v1/aiproducts/video/seedance", a.baseURL), nil
+	if strings.Contains(info.OriginModelName, "seedance") || strings.Contains(a.baseURL, "qreel.ai") || strings.Contains(a.baseURL, "c6c.api") {
+		// return fmt.Sprintf("%s/api/v1/aiproducts/video/seedance", a.baseURL), nil
+		return fmt.Sprintf("%s/v1/aiproducts/video/seedance", a.baseURL), nil
 	}
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	// return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return fmt.Sprintf("%s/v3/contents/generations/tasks", a.baseURL), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -245,9 +247,9 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
-	if strings.Contains(baseUrl, "qreel.ai") {
-		uri = fmt.Sprintf("%s/api/v1/aiproducts/video/seedance/tasks/%s", baseUrl, taskID)
+	uri := fmt.Sprintf("%s/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	if strings.Contains(baseUrl, "qreel.ai") || strings.Contains(baseUrl, "c6c.api") {
+		uri = fmt.Sprintf("%s/v1/aiproducts/video/seedance/tasks/%s", baseUrl, taskID)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
