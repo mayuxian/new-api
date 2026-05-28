@@ -50,10 +50,17 @@ func RelayAsset(c *gin.Context) {
 	baseURL := channel.GetBaseURL()
 	requestURL := c.Request.URL.Path
 	
-	// Ensure correct upstream path for Seedance
+	// Determine upstream path
 	// The client requests /v1/assets/upload or /v1/assets/create or /v1/assets/groups/create
-	// We need to map it to /api/v1/assets/*
-	upstreamPath := strings.Replace(requestURL, "/v1/assets/", "/api/v1/assets/", 1)
+	upstreamPath := requestURL
+	
+	// // QReel's official API requires /api/v1/assets/...
+	// if strings.Contains(baseURL, "qreel.ai") {
+	// 	upstreamPath = strings.Replace(requestURL, "/v1/assets/", "/api/v1/assets/", 1)
+	// }
+	
+	// Ensure we handle edge cases where baseUrl ends with slash and upstream path starts with slash
+	baseURL = strings.TrimSuffix(baseURL, "/")
 	fullURL := fmt.Sprintf("%s%s", baseURL, upstreamPath)
 
 	req, err := http.NewRequest(c.Request.Method, fullURL, c.Request.Body)
