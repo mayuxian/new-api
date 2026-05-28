@@ -13,6 +13,30 @@
         "panel": "shared"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "start-web-default",
+      "type": "shell",
+      "command": "bun run dev",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}/web/default"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Rsbuild v",
+          "endsPattern": "Local:.*"
+        }
+      }
     }
   ]
 }

@@ -19,6 +19,20 @@
       },
       "args": [],
       "preLaunchTask": "ensure-dev-services"
+    },
+    {
+      "name": "Debug Web Default",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:3001",
+      "webRoot": "${workspaceFolder}/web/default",
+      "preLaunchTask": "start-web-default"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Full Stack",
+      "configurations": ["Debug new-api", "Debug Web Default"]
     }
   ]
 }
