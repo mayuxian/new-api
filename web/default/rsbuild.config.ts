@@ -13,9 +13,10 @@ export default defineConfig(({ envMode }) => {
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
 
+  console.log('Backend ServerUrl=', serverUrl)
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
-    (['/api', '/mj', '/pg'] as const).map((key) => [
+    (['/api', '/mj', '/pg', '/v1'] as const).map((key) => [
       key,
       { target: serverUrl, changeOrigin: true },
     ]),
@@ -53,6 +54,9 @@ export default defineConfig(({ envMode }) => {
     source: {
       entry: {
         index: './src/main.tsx',
+      },
+      define: {
+        'process.env.NODE_ENV': JSON.stringify(isProd ? 'production' : 'development'),
       },
     },
     resolve: {
