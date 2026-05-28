@@ -11,7 +11,7 @@
         "CGO_ENABLED": "0",
         "GIN_MODE": "debug",
         "DEBUG": "true",
-        "PORT": "3000",
+        "PORT": "3002",
         "SQL_DSN": "postgresql://root:123456@localhost:5432/new-api",
         "REDIS_CONN_STRING": "redis://localhost:6379",
         "BATCH_UPDATE_ENABLED": "true",
