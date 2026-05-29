@@ -262,17 +262,6 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
-	} else if strings.Contains(c.Request.URL.Path, "/v1/assets/") {
-		relayMode := relayconstant.RelayModeUnknown
-		if c.Request.Method == http.MethodPost {
-			req, _ := getModelFromRequest(c)
-			if req != nil && req.Model != "" {
-				modelRequest.Model = req.Model
-			} else {
-				modelRequest.Model = "dreamina-seedance-2-0-260128" // default model for Seedance assets
-			}
-		}
-		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
