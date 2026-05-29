@@ -106,6 +106,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig["chat"] = map[string]interface{}{
 		"enabled":    true,
 		"playground": true,
+		"ai_union":   true,
 		"chat":       true,
 	}
 
@@ -431,6 +432,9 @@ func (user *User) Insert(inviterId int) error {
 			_ = inviteUser(inviterId)
 		}
 	}
+	if _, err := EnsureUserDefaultToken(user.Id, user.Username); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -490,6 +494,9 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
 			_ = inviteUser(inviterId)
 		}
+	}
+	if _, err := EnsureUserDefaultToken(user.Id, user.Username); err != nil {
+		common.SysLog(fmt.Sprintf("failed to create default token for oauth user %d: %s", user.Id, err.Error()))
 	}
 }
 

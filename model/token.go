@@ -6,15 +6,19 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
+const TokenPurposeDefault = "default"
+
 type Token struct {
 	Id                 int            `json:"id"`
 	UserId             int            `json:"user_id" gorm:"index"`
 	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
+	Purpose            string         `json:"purpose" gorm:"type:varchar(32);index;default:''"`
 	Status             int            `json:"status" gorm:"default:1"`
 	Name               string         `json:"name" gorm:"index" `
 	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
@@ -83,6 +87,53 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	var err error
 	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
+}
+
+func EnsureUserDefaultToken(userID int, username string) (*Token, error) {
+	if userID == 0 {
+		return nil, errors.New("userId is empty")
+	}
+
+	var token Token
+	err := DB.Where("user_id = ? AND purpose = ?", userID, TokenPurposeDefault).
+		Order("id asc").
+		First(&token).Error
+	if err == nil {
+		return &token, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	key, err := common.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+
+	name := "Default API Key"
+	if strings.TrimSpace(username) == "" {
+		username = fmt.Sprintf("user-%d", userID)
+	}
+	defaultToken := &Token{
+		UserId:             userID,
+		Name:               name,
+		Key:                key,
+		Purpose:            TokenPurposeDefault,
+		Status:             common.TokenStatusEnabled,
+		CreatedTime:        common.GetTimestamp(),
+		AccessedTime:       common.GetTimestamp(),
+		ExpiredTime:        -1,
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+		ModelLimits:        "",
+	}
+	if setting.DefaultUseAutoGroup {
+		defaultToken.Group = "auto"
+	}
+	if err := defaultToken.Insert(); err != nil {
+		return nil, err
+	}
+	return defaultToken, nil
 }
 
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
