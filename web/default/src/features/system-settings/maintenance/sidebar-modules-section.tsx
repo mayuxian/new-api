@@ -82,6 +82,10 @@ export function SidebarModulesSection({
         title: t('Playground'),
         description: t('Experiment with prompts and models in real time.'),
       },
+      ai_union: {
+        title: t('Video Production'),
+        description: t('Native video generation workspace.'),
+      },
       chat: {
         title: t('Chat'),
         description: t('Access previous conversations and start new ones.'),

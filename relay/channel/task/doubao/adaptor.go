@@ -2,6 +2,7 @@ package doubao
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,7 +64,11 @@ type requestPayload struct {
 }
 
 type responsePayload struct {
-	ID string `json:"id"` // task_id
+	ID     string          `json:"id"`      // task_id
+	TaskID string          `json:"task_id"` // task_id
+	TaskId string          `json:"taskId"`  // task_id
+	Data   json.RawMessage `json:"data"`
+	Result json.RawMessage `json:"result"`
 }
 
 type responseTask struct {
@@ -71,7 +76,8 @@ type responseTask struct {
 	Model   string `json:"model"`
 	Status  string `json:"status"`
 	Content struct {
-		VideoURL string `json:"video_url"`
+		VideoURL     string `json:"video_url"`
+		LastFrameURL string `json:"last_frame_url"`
 	} `json:"content"`
 	Seed            int    `json:"seed"`
 	Resolution      string `json:"resolution"`
@@ -122,8 +128,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if strings.Contains(info.OriginModelName, "seedance") || strings.Contains(a.baseURL, "qreel.ai") {
-		return fmt.Sprintf("%s/api/v1/aiproducts/video/seedance", a.baseURL), nil
+	if isSeedanceEndpoint(info.OriginModelName, a.baseURL) {
+		return seedanceURL(a.baseURL, "/api/v1/aiproducts/video/seedance"), nil
 	}
 	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
 }
@@ -223,8 +229,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	if dResp.ID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
+	taskID = dResp.taskID()
+	if taskID == "" {
+		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty: %s", strings.TrimSpace(string(responseBody))), "invalid_response", http.StatusInternalServerError)
 		return
 	}
 
@@ -235,7 +242,63 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.Model = info.OriginModelName
 
 	c.JSON(http.StatusOK, ov)
-	return dResp.ID, responseBody, nil
+	return taskID, responseBody, nil
+}
+
+func (r responsePayload) taskID() string {
+	switch {
+	case strings.TrimSpace(r.ID) != "":
+		return strings.TrimSpace(r.ID)
+	case strings.TrimSpace(r.TaskID) != "":
+		return strings.TrimSpace(r.TaskID)
+	case strings.TrimSpace(r.TaskId) != "":
+		return strings.TrimSpace(r.TaskId)
+	}
+
+	for _, raw := range []json.RawMessage{r.Data, r.Result} {
+		if id := taskIDFromRawMessage(raw); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func taskIDFromRawMessage(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var id string
+	if err := common.Unmarshal(raw, &id); err == nil {
+		return strings.TrimSpace(id)
+	}
+	var value interface{}
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return findSubmitTaskID(value)
+}
+
+func findSubmitTaskID(value interface{}) string {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for _, key := range []string{"id", "task_id", "taskId", "taskID"} {
+			if id, ok := typed[key].(string); ok && strings.TrimSpace(id) != "" {
+				return strings.TrimSpace(id)
+			}
+		}
+		for _, v := range typed {
+			if id := findSubmitTaskID(v); id != "" {
+				return id
+			}
+		}
+	case []interface{}:
+		for _, v := range typed {
+			if id := findSubmitTaskID(v); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
 }
 
 // FetchTask fetch task status
@@ -244,10 +307,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
+	modelName := taskFetchModelName(body)
 
 	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
-	if strings.Contains(baseUrl, "qreel.ai") {
-		uri = fmt.Sprintf("%s/api/v1/aiproducts/video/seedance/tasks/%s", baseUrl, taskID)
+	if isSeedanceEndpoint(modelName, baseUrl) {
+		uri = seedanceURL(baseUrl, fmt.Sprintf("/api/v1/aiproducts/video/seedance/tasks/%s", taskID))
 	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -264,6 +328,15 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+func taskFetchModelName(body map[string]any) string {
+	for _, key := range []string{"model", "origin_model_name", "upstream_model_name"} {
+		if value, ok := body[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -311,8 +384,8 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	resTask := responseTask{}
-	if err := common.Unmarshal(respBody, &resTask); err != nil {
+	resTask, err := normalizeResponseTask(respBody)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
 
@@ -349,8 +422,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
-	var dResp responseTask
-	if err := common.Unmarshal(originTask.Data, &dResp); err != nil {
+	dResp, err := normalizeResponseTask(originTask.Data)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
 	}
 
@@ -363,6 +436,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		openAIVideo.SetMetadata("url", taskcommon.ReplaceURLHost(dResp.Content.VideoURL))
 	} else {
 		openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	}
+	if dResp.Content.LastFrameURL != "" {
+		openAIVideo.SetMetadata("last_frame_url", dResp.Content.LastFrameURL)
 	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
@@ -384,4 +460,78 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return resultBytes, nil
+}
+
+func isSeedanceEndpoint(modelName string, baseURL string) bool {
+	modelName = strings.ToLower(modelName)
+	baseURL = strings.ToLower(baseURL)
+	return strings.Contains(modelName, "seedance") ||
+		strings.Contains(baseURL, "qreel.ai") ||
+		strings.Contains(baseURL, "cloudwise.ai")
+}
+
+func seedanceURL(baseURL string, path string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(baseURL, "/api/v1") && strings.HasPrefix(path, "/api/v1/") {
+		return baseURL + strings.TrimPrefix(path, "/api/v1")
+	}
+	return baseURL + path
+}
+
+func normalizeResponseTask(respBody []byte) (responseTask, error) {
+	var resTask responseTask
+	if err := common.Unmarshal(respBody, &resTask); err != nil {
+		return resTask, err
+	}
+
+	var raw map[string]interface{}
+	if err := common.Unmarshal(respBody, &raw); err != nil {
+		return resTask, err
+	}
+
+	if resTask.Status == "" {
+		resTask.Status = findNestedString(raw, "status")
+	}
+	if resTask.ID == "" {
+		resTask.ID = findNestedString(raw, "id")
+	}
+	if resTask.Model == "" {
+		resTask.Model = findNestedString(raw, "model")
+	}
+	if resTask.Content.VideoURL == "" {
+		resTask.Content.VideoURL = findNestedString(raw, "video_url")
+	}
+	if resTask.Content.LastFrameURL == "" {
+		resTask.Content.LastFrameURL = findNestedString(raw, "last_frame_url")
+	}
+	if resTask.Error.Message == "" {
+		resTask.Error.Message = findNestedString(raw, "message")
+	}
+	if resTask.Error.Code == "" {
+		resTask.Error.Code = findNestedString(raw, "code")
+	}
+	return resTask, nil
+}
+
+func findNestedString(value interface{}, key string) string {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		if v, ok := typed[key]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+		for _, v := range typed {
+			if s := findNestedString(v, key); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, v := range typed {
+			if s := findNestedString(v, key); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }

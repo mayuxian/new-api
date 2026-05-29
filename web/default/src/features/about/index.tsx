@@ -39,7 +39,6 @@ function isLikelyHtml(value: string) {
 
 function EmptyAboutState() {
   const { t } = useTranslation()
-  const currentYear = new Date().getFullYear()
 
   return (
     <div className='flex min-h-[60vh] items-center justify-center p-8'>

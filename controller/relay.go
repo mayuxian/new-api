@@ -116,7 +116,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		return
 	}
-	
+
 	if common.DebugEnabled {
 		bodyStorage, _ := common.GetBodyStorage(c)
 		if bodyStorage != nil {
@@ -507,6 +507,13 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	_, taskErr := SubmitTaskWithRelayInfo(c, relayInfo)
+	if taskErr != nil {
+		respondTaskError(c, taskErr)
+	}
+}
+
+func SubmitTaskWithRelayInfo(c *gin.Context, relayInfo *relaycommon.RelayInfo) (*model.Task, *dto.TaskError) {
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
 	defer func() {
@@ -603,12 +610,13 @@ func RelayTask(c *gin.Context) {
 		task.Action = relayInfo.Action
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
+			taskErr = service.TaskErrorWrapperLocal(insertErr, "insert_task_failed", http.StatusInternalServerError)
+			return nil, taskErr
 		}
+		return task, nil
 	}
 
-	if taskErr != nil {
-		respondTaskError(c, taskErr)
-	}
+	return nil, taskErr
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）

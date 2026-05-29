@@ -41,6 +41,24 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
+
+		aiUnionPublicRoute := apiRouter.Group("/ai-union/public")
+		{
+			aiUnionPublicRoute.GET("/media/:media_id", controller.AIUnionPublicMedia)
+		}
+		aiUnionRoute := apiRouter.Group("/ai-union")
+		aiUnionRoute.Use(middleware.TokenOrUserAuth())
+		{
+			aiUnionRoute.GET("/config", controller.AIUnionConfig)
+			aiUnionRoute.POST("/assets/upload", controller.AIUnionUploadAsset)
+			aiUnionRoute.GET("/assets/:asset_id/status", controller.AIUnionAssetStatus)
+			aiUnionRoute.POST("/tasks", controller.AIUnionSubmitTask)
+			aiUnionRoute.GET("/tasks", controller.AIUnionListTasks)
+			aiUnionRoute.GET("/tasks/:task_id", controller.AIUnionGetTask)
+			aiUnionRoute.GET("/tasks/:task_id/media", controller.AIUnionTaskMedia)
+			aiUnionRoute.GET("/media/:media_id/token", controller.AIUnionMediaToken)
+		}
+
 		// OAuth routes - specific routes must come before :provider wildcard
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
 		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
