@@ -559,6 +559,8 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Progress:   task.Progress,
 		Properties: task.Properties,
 		Username:   task.Username,
-		Data:       task.Data,
+		// 上游原始响应体（含未替换 host 的 video_url 等敏感/原始字段）仅用于落库审计，
+		// 不返回给前端，避免前端拿到原始上游域名（如 download.cloudwise.ai）后绕过本地下载代理。
+		// Data: task.Data,
 	}
 }
