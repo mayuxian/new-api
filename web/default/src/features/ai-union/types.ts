@@ -102,12 +102,26 @@ export type AiUnionTaskListParams = {
 export type AiUnionAssetUpload = {
   asset_id: string
   upstream_asset_id?: string
+  upstream_group_id?: string
   upstream_url?: string
   channel_id?: number
   media: AiUnionMedia
   expires_at: number
   url: string
   token: string
+}
+
+export type AiUnionAssetGroup = {
+  group_id: string
+  upstream_group_id: string
+  channel_id: number
+  model: string
+}
+
+export type AiUnionAssetGroupCreatePayload = {
+  model?: string
+  name?: string
+  description?: string
 }
 
 export type AiUnionMediaToken = {

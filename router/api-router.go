@@ -50,6 +50,7 @@ func SetApiRouter(router *gin.Engine) {
 		aiUnionRoute.Use(middleware.TokenOrUserAuth())
 		{
 			aiUnionRoute.GET("/config", controller.AIUnionConfig)
+			aiUnionRoute.POST("/assets/groups/create", controller.AIUnionCreateAssetGroup)
 			aiUnionRoute.POST("/assets/upload", controller.AIUnionUploadAsset)
 			aiUnionRoute.GET("/assets/:asset_id/status", controller.AIUnionAssetStatus)
 			aiUnionRoute.POST("/tasks", controller.AIUnionSubmitTask)

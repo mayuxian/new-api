@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { api } from '@/lib/api'
 import type {
+  AiUnionAssetGroup,
+  AiUnionAssetGroupCreatePayload,
   AiUnionAssetUpload,
   AiUnionConfig,
   AiUnionMedia,
@@ -35,16 +37,32 @@ export async function getAiUnionConfig() {
   return res.data
 }
 
-export async function uploadAiUnionAsset(file: File, model: string) {
+export async function uploadAiUnionAsset(
+  file: File,
+  model: string,
+  options: { groupId?: string; channelId?: number } = {}
+) {
   const form = new FormData()
   form.append('file', file)
   form.append('model', model)
+  if (options.groupId) form.append('group_id', options.groupId)
+  if (options.channelId) form.append('channel_id', String(options.channelId))
   const res = await api.post<ApiResponse<AiUnionAssetUpload>>(
     '/api/ai-union/assets/upload',
     form,
     {
       headers: { 'Content-Type': 'multipart/form-data' },
     }
+  )
+  return res.data
+}
+
+export async function createAiUnionAssetGroup(
+  payload: AiUnionAssetGroupCreatePayload
+) {
+  const res = await api.post<ApiResponse<AiUnionAssetGroup>>(
+    '/api/ai-union/assets/groups/create',
+    payload
   )
   return res.data
 }

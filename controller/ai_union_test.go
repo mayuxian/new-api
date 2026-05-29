@@ -2,12 +2,14 @@ package controller
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -32,7 +34,7 @@ func setupAIUnionControllerTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
-	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.User{}, &model.Token{}, &model.Ability{}))
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
@@ -42,6 +44,91 @@ func setupAIUnionControllerTestDB(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func TestAIUnionCreateAssetGroupProxiesToSelectedChannel(t *testing.T) {
+	db := setupAIUnionControllerTestDB(t)
+
+	var upstreamAuth string
+	var upstreamPayload struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/v1/assets/groups/create", r.URL.Path)
+		require.Equal(t, http.MethodPost, r.Method)
+		upstreamAuth = r.Header.Get("Authorization")
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, common.Unmarshal(body, &upstreamPayload))
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"group_test_123"}}`))
+	}))
+	defer upstream.Close()
+
+	require.NoError(t, db.Create(&model.User{
+		Id:       1,
+		Username: "wuji",
+		Password: "12345678",
+		Group:    "default",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.Token{
+		UserId:      1,
+		Key:         "default-token",
+		Purpose:     model.TokenPurposeDefault,
+		Status:      common.TokenStatusEnabled,
+		ExpiredTime: -1,
+	}).Error)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:      7,
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "upstream-key",
+		Name:    "ai-union-upstream",
+		Status:  common.ChannelStatusEnabled,
+		BaseURL: common.GetPointer(upstream.URL),
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     aiUnionDefaultModel,
+		ChannelId: 7,
+		Enabled:   true,
+		Priority:  common.GetPointer(int64(0)),
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/ai-union/assets/groups/create",
+		strings.NewReader(`{"model":"`+aiUnionDefaultModel+`","name":"project refs","description":"Reusable refs"}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", 1)
+	ctx.Set("username", "wuji")
+
+	AIUnionCreateAssetGroup(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "Bearer upstream-key", upstreamAuth)
+	require.Equal(t, "project refs", upstreamPayload.Name)
+	require.Equal(t, "Reusable refs", upstreamPayload.Description)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			GroupID   string `json:"group_id"`
+			ChannelID int    `json:"channel_id"`
+			Model     string `json:"model"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, "group_test_123", response.Data.GroupID)
+	require.Equal(t, 7, response.Data.ChannelID)
+	require.Equal(t, aiUnionDefaultModel, response.Data.Model)
 }
 
 func TestAIUnionModelNamesForTokenUsesGroupAbilities(t *testing.T) {

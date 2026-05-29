@@ -72,9 +72,16 @@ type aiUnionTaskResponse struct {
 	Media []*model.AiUnionMedia `json:"media"`
 }
 
+type aiUnionAssetGroupCreateRequest struct {
+	Model       string `json:"model"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 type aiUnionUpstreamAsset struct {
-	ID  string `json:"id"`
-	URL string `json:"url"`
+	ID      string `json:"id"`
+	URL     string `json:"url"`
+	GroupID string `json:"group_id"`
 }
 
 type aiUnionUpstreamAssetResponse struct {
@@ -190,7 +197,17 @@ func AIUnionUploadAsset(c *gin.Context) {
 		return
 	}
 
-	if err := prepareAIUnionRelayContext(c, token, modelName, 0); err != nil {
+	groupID := strings.TrimSpace(c.PostForm("group_id"))
+	if groupID == "" {
+		groupID = strings.TrimSpace(c.PostForm("groupId"))
+	}
+	preferredChannelID, err := aiUnionUploadPreferredChannelID(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	if err := prepareAIUnionRelayContext(c, token, modelName, preferredChannelID); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -204,7 +221,7 @@ func AIUnionUploadAsset(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	upstreamAsset, err := uploadAIUnionAssetToUpstream(c, file, media.FileName, media.MimeType)
+	upstreamAsset, err := uploadAIUnionAssetToUpstream(c, file, media.FileName, media.MimeType, groupID)
 	if err != nil {
 		media.Status = model.AiUnionMediaStatusFailed
 		media.Error = err.Error()
@@ -229,12 +246,68 @@ func AIUnionUploadAsset(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"asset_id":          media.TaskID,
 		"upstream_asset_id": upstreamAsset.ID,
+		"upstream_group_id": upstreamAsset.GroupID,
 		"upstream_url":      media.SourceURL,
 		"channel_id":        common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		"media":             media,
 		"expires_at":        time.Now().Add(aiUnionAssetTokenTTL).Unix(),
 		"url":               buildAIUnionPublicMediaURL(c, media.ID, tokenValue),
 		"token":             tokenValue,
+	})
+}
+
+func AIUnionCreateAssetGroup(c *gin.Context) {
+	var req aiUnionAssetGroupCreateRequest
+	if c.Request.ContentLength != 0 {
+		if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	token, err := ensureAIUnionDefaultToken(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.Status != common.TokenStatusEnabled {
+		common.ApiErrorMsg(c, "Default API key is disabled")
+		return
+	}
+
+	modelName := strings.TrimSpace(req.Model)
+	if modelName == "" {
+		modelName, err = aiUnionDefaultModelForToken(token)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	allowed, err := aiUnionModelAllowedForToken(token, modelName)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !allowed {
+		common.ApiErrorMsg(c, fmt.Sprintf("AI Union model %s is not available for the default API key", modelName))
+		return
+	}
+
+	if err := prepareAIUnionRelayContext(c, token, modelName, 0); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	groupID, err := createAIUnionUpstreamAssetGroupFromContext(c, req.Name, req.Description)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"group_id":          groupID,
+		"upstream_group_id": groupID,
+		"channel_id":        common.GetContextKeyInt(c, constant.ContextKeyChannelId),
+		"model":             modelName,
 	})
 }
 
@@ -879,6 +952,21 @@ func aiUnionMetadataInt(value interface{}) int {
 	return 0
 }
 
+func aiUnionUploadPreferredChannelID(c *gin.Context) (int, error) {
+	channelIDValue := strings.TrimSpace(c.PostForm("channel_id"))
+	if channelIDValue == "" {
+		channelIDValue = strings.TrimSpace(c.PostForm("channelId"))
+	}
+	if channelIDValue == "" {
+		return 0, nil
+	}
+	channelID, err := strconv.Atoi(channelIDValue)
+	if err != nil || channelID <= 0 {
+		return 0, fmt.Errorf("invalid channel_id")
+	}
+	return channelID, nil
+}
+
 func aiUnionChannelAvailable(userGroup string, usingGroup string, modelName string) bool {
 	if usingGroup == "auto" {
 		for _, group := range service.GetUserAutoGroup(userGroup) {
@@ -954,7 +1042,7 @@ func saveAIUnionAsset(c *gin.Context, file multipart.File, header *multipart.Fil
 	return media, nil
 }
 
-func uploadAIUnionAssetToUpstream(c *gin.Context, file multipart.File, fileName string, mimeType string) (*aiUnionUpstreamAsset, error) {
+func uploadAIUnionAssetToUpstream(c *gin.Context, file multipart.File, fileName string, mimeType string, groupID string) (*aiUnionUpstreamAsset, error) {
 	baseURL := common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl)
 	apiKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
 	if baseURL == "" || apiKey == "" {
@@ -966,9 +1054,13 @@ func uploadAIUnionAssetToUpstream(c *gin.Context, file multipart.File, fileName 
 		proxy = channelSetting.Proxy
 	}
 
-	groupID, err := createAIUnionUpstreamAssetGroup(baseURL, apiKey, proxy)
-	if err != nil {
-		return nil, err
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		var err error
+		groupID, err = createAIUnionUpstreamAssetGroup(baseURL, apiKey, proxy, "", "")
+		if err != nil {
+			return nil, err
+		}
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, err
@@ -1012,13 +1104,36 @@ func uploadAIUnionAssetToUpstream(c *gin.Context, file multipart.File, fileName 
 	if err != nil {
 		return nil, fmt.Errorf("upload AI Union asset failed: %w", err)
 	}
+	asset.GroupID = groupID
 	return asset, nil
 }
 
-func createAIUnionUpstreamAssetGroup(baseURL string, apiKey string, proxy string) (string, error) {
+func createAIUnionUpstreamAssetGroupFromContext(c *gin.Context, name string, description string) (string, error) {
+	baseURL := common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl)
+	apiKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+	if baseURL == "" || apiKey == "" {
+		return "", fmt.Errorf("AI Union upstream channel is not ready")
+	}
+
+	proxy := ""
+	if channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting); ok {
+		proxy = channelSetting.Proxy
+	}
+	return createAIUnionUpstreamAssetGroup(baseURL, apiKey, proxy, name, description)
+}
+
+func createAIUnionUpstreamAssetGroup(baseURL string, apiKey string, proxy string, name string, description string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "c6c-ai-union"
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		description = "C6C AI Union uploads"
+	}
 	payload, err := common.Marshal(gin.H{
-		"name":        "c6c-ai-union",
-		"description": "C6C AI Union uploads",
+		"name":        name,
+		"description": description,
 	})
 	if err != nil {
 		return "", err
@@ -1049,6 +1164,9 @@ func doAIUnionUpstreamRequest(req *http.Request, proxy string) (*http.Response, 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	if client == nil {
+		client = http.DefaultClient
 	}
 	return client.Do(req)
 }
