@@ -30,6 +30,7 @@ import {
   Radio,
   FlaskConical,
   MessageSquare,
+  Clapperboard,
   CreditCard,
   ListTodo,
   Settings,
@@ -59,6 +60,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('Video Production'),
+            url: '/ai-union',
+            icon: Clapperboard,
           },
           {
             title: t('Chat'),

@@ -360,8 +360,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		key = privateData.Key
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
+		"task_id":           task.GetUpstreamTaskID(),
+		"action":            task.Action,
+		"origin_model_name": task.Properties.OriginModelName,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
@@ -493,6 +494,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	if shouldSettle {
 		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	}
+	if shouldSettle && task.PrivateData.AiUnion {
+		ArchiveAIUnionTaskMediaAsync(ctx, task, ExtractAIUnionMediaURLsFromTask(task))
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
