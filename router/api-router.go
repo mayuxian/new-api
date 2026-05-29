@@ -56,6 +56,7 @@ func SetApiRouter(router *gin.Engine) {
 			aiUnionRoute.POST("/tasks", controller.AIUnionSubmitTask)
 			aiUnionRoute.GET("/tasks", controller.AIUnionListTasks)
 			aiUnionRoute.GET("/tasks/:task_id", controller.AIUnionGetTask)
+			aiUnionRoute.DELETE("/tasks/:task_id", controller.AIUnionDeleteTask)
 			aiUnionRoute.GET("/tasks/:task_id/media", controller.AIUnionTaskMedia)
 			aiUnionRoute.GET("/media/:media_id/token", controller.AIUnionMediaToken)
 		}

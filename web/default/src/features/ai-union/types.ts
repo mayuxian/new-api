@@ -74,7 +74,6 @@ export type AiUnionTask = {
   status: string
   fail_reason: string
   progress: string
-  data?: unknown
   properties?: {
     input?: string
     upstream_model_name?: string

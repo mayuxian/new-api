@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { api } from '@/lib/api'
 import type {
   AiUnionAssetGroup,
@@ -76,15 +75,27 @@ export async function submitAiUnionTask(payload: AiUnionSubmitPayload) {
 }
 
 export async function listAiUnionTasks(params: AiUnionTaskListParams = {}) {
-  const res = await api.get<ApiResponse<AiUnionTaskPage>>('/api/ai-union/tasks', {
-    params,
-  })
+  const res = await api.get<ApiResponse<AiUnionTaskPage>>(
+    '/api/ai-union/tasks',
+    {
+      params,
+    }
+  )
   return res.data
 }
 
 export async function getAiUnionTask(taskId: string) {
   const res = await api.get<ApiResponse<AiUnionTaskDetail>>(
-    `/api/ai-union/tasks/${encodeURIComponent(taskId)}`
+    `/api/ai-union/tasks/${encodeURIComponent(taskId)}`,
+    { skipBusinessError: true } as Record<string, unknown>
+  )
+  return res.data
+}
+
+export async function deleteAiUnionTask(taskId: string) {
+  const res = await api.delete<ApiResponse<{ deleted_media: number }>>(
+    `/api/ai-union/tasks/${encodeURIComponent(taskId)}`,
+    { skipBusinessError: true } as Record<string, unknown>
   )
   return res.data
 }

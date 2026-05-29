@@ -24,7 +24,6 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -68,8 +67,29 @@ type aiUnionDefaultTokenStatus struct {
 }
 
 type aiUnionTaskResponse struct {
-	Task  *model.Task           `json:"task"`
+	Task  *aiUnionTaskView      `json:"task"`
 	Media []*model.AiUnionMedia `json:"media"`
+}
+
+type aiUnionTaskView struct {
+	ID         int64                 `json:"id"`
+	CreatedAt  int64                 `json:"created_at"`
+	UpdatedAt  int64                 `json:"updated_at"`
+	TaskID     string                `json:"task_id"`
+	Platform   constant.TaskPlatform `json:"platform"`
+	UserId     int                   `json:"user_id"`
+	Group      string                `json:"group"`
+	ChannelId  int                   `json:"channel_id"`
+	Quota      int                   `json:"quota"`
+	Action     string                `json:"action"`
+	Status     model.TaskStatus      `json:"status"`
+	FailReason string                `json:"fail_reason"`
+	SubmitTime int64                 `json:"submit_time"`
+	StartTime  int64                 `json:"start_time"`
+	FinishTime int64                 `json:"finish_time"`
+	Progress   string                `json:"progress"`
+	Properties model.Properties      `json:"properties"`
+	Username   string                `json:"username,omitempty"`
 }
 
 type aiUnionAssetGroupCreateRequest struct {
@@ -418,7 +438,7 @@ func AIUnionSubmitTask(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, aiUnionTaskResponse{Task: task, Media: []*model.AiUnionMedia{}})
+	common.ApiSuccess(c, aiUnionTaskResponse{Task: newAIUnionTaskView(task), Media: []*model.AiUnionMedia{}})
 }
 
 func AIUnionListTasks(c *gin.Context) {
@@ -444,7 +464,7 @@ func AIUnionListTasks(c *gin.Context) {
 		return
 	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(tasks)
+	pageInfo.SetItems(newAIUnionTaskViews(tasks))
 	common.ApiSuccess(c, pageInfo)
 }
 
@@ -458,7 +478,16 @@ func AIUnionGetTask(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, aiUnionTaskResponse{Task: task, Media: media})
+	common.ApiSuccess(c, aiUnionTaskResponse{Task: newAIUnionTaskView(task), Media: media})
+}
+
+func AIUnionDeleteTask(c *gin.Context) {
+	deletedMedia, err := service.DeleteAIUnionTaskHistory(c.GetInt("id"), c.Param("task_id"))
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, gin.H{"deleted_media": deletedMedia})
 }
 
 func AIUnionTaskMedia(c *gin.Context) {
@@ -689,6 +718,40 @@ func getAndMaybeArchiveAIUnionMedia(c *gin.Context, task *model.Task) ([]*model.
 		service.ArchiveAIUnionTaskMediaAsync(context.Background(), task, service.ExtractAIUnionMediaURLsFromTask(task))
 	}
 	return model.GetAiUnionMediaByTask(c.GetInt("id"), task.TaskID)
+}
+
+func newAIUnionTaskViews(tasks []*model.Task) []*aiUnionTaskView {
+	items := make([]*aiUnionTaskView, 0, len(tasks))
+	for _, task := range tasks {
+		items = append(items, newAIUnionTaskView(task))
+	}
+	return items
+}
+
+func newAIUnionTaskView(task *model.Task) *aiUnionTaskView {
+	if task == nil {
+		return nil
+	}
+	return &aiUnionTaskView{
+		ID:         task.ID,
+		CreatedAt:  task.CreatedAt,
+		UpdatedAt:  task.UpdatedAt,
+		TaskID:     task.TaskID,
+		Platform:   task.Platform,
+		UserId:     task.UserId,
+		Group:      task.Group,
+		ChannelId:  task.ChannelId,
+		Quota:      task.Quota,
+		Action:     task.Action,
+		Status:     task.Status,
+		FailReason: task.FailReason,
+		SubmitTime: task.SubmitTime,
+		StartTime:  task.StartTime,
+		FinishTime: task.FinishTime,
+		Progress:   task.Progress,
+		Properties: task.Properties,
+		Username:   task.Username,
+	}
 }
 
 func normalizeAIUnionRequest(req *relaycommon.TaskSubmitReq) error {
@@ -1252,16 +1315,8 @@ func detectUploadedAIUnionMime(file multipart.File, header *multipart.FileHeader
 	return http.DetectContentType(buf[:n]), nil
 }
 
-func buildAIUnionPublicMediaURL(c *gin.Context, mediaID int64, token string) string {
-	base := strings.TrimRight(system_setting.ServerAddress, "/")
-	if base == "" {
-		scheme := "http"
-		if c.Request.TLS != nil || c.Request.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		base = scheme + "://" + c.Request.Host
-	}
-	return fmt.Sprintf("%s/api/ai-union/public/media/%d?token=%s", base, mediaID, token)
+func buildAIUnionPublicMediaURL(_ *gin.Context, mediaID int64, token string) string {
+	return fmt.Sprintf("/api/ai-union/public/media/%d?token=%s", mediaID, token)
 }
 
 func sanitizeAIUnionFileName(name string) string {

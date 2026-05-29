@@ -16,10 +16,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"gorm.io/gorm"
 )
 
 const aiUnionMediaTokenVersion = "v1"
@@ -89,6 +91,49 @@ func VerifyAIUnionMediaToken(token string) (*AIUnionMediaTokenClaims, error) {
 		UserID:  userID,
 		Expires: expires,
 	}, nil
+}
+
+func DeleteAIUnionTaskHistory(userID int, taskID string) (int, error) {
+	taskID = strings.TrimSpace(taskID)
+	if userID == 0 || taskID == "" {
+		return 0, errors.New("user id and task id are required")
+	}
+
+	var task model.Task
+	err := model.DB.Where("user_id = ? AND task_id = ? AND action = ?", userID, taskID, AIUnionTaskAction).First(&task).Error
+	exists, err := model.RecordExist(err)
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, errors.New("task not found")
+	}
+	if task.Status != model.TaskStatusSuccess && task.Status != model.TaskStatusFailure {
+		return 0, errors.New("task is not completed")
+	}
+
+	var media []*model.AiUnionMedia
+	if err := model.DB.Where("user_id = ? AND task_id = ?", userID, taskID).Find(&media).Error; err != nil {
+		return 0, err
+	}
+	storagePaths := make([]string, 0, len(media))
+	for _, item := range media {
+		if item != nil && strings.TrimSpace(item.StoragePath) != "" {
+			storagePaths = append(storagePaths, item.StoragePath)
+		}
+	}
+
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND task_id = ?", userID, taskID).Delete(&model.AiUnionMedia{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ? AND user_id = ? AND task_id = ? AND action = ?", task.ID, userID, taskID, AIUnionTaskAction).Delete(&model.Task{}).Error
+	}); err != nil {
+		return 0, err
+	}
+
+	cleanupAIUnionMediaFiles(storagePaths)
+	return len(media), nil
 }
 
 func DownloadAIUnionMedia(ctx context.Context, mediaID int64) error {
@@ -176,6 +221,26 @@ func DownloadAIUnionMedia(ctx context.Context, mediaID int64) error {
 	media.Error = ""
 	media.UpdatedAt = time.Now().Unix()
 	return model.DB.Save(media).Error
+}
+
+func cleanupAIUnionMediaFiles(storagePaths []string) {
+	removedDirs := make(map[string]struct{})
+	for _, storagePath := range storagePaths {
+		fullPath := AIUnionMediaFullPath(storagePath)
+		if err := os.Remove(fullPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			common.SysLog("failed to remove ai union media file: " + err.Error())
+			continue
+		}
+		dir := filepath.Dir(fullPath)
+		if dir != "." && dir != string(filepath.Separator) {
+			removedDirs[dir] = struct{}{}
+		}
+	}
+	for dir := range removedDirs {
+		if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+			common.SysLog("failed to remove ai union media directory: " + err.Error())
+		}
+	}
 }
 
 func setAIUnionMediaStatus(media *model.AiUnionMedia, status string, message string) error {

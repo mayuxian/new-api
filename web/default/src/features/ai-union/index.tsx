@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -33,6 +32,7 @@ import {
   Music,
   Plus,
   RefreshCw,
+  Trash2,
   WandSparkles,
   X,
 } from 'lucide-react'
@@ -42,12 +42,7 @@ import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -61,8 +56,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import {
+  deleteAiUnionTask,
   getAiUnionConfig,
   getAiUnionMediaToken,
   getAiUnionTask,
@@ -74,14 +71,14 @@ import type {
   AiUnionMedia,
   AiUnionModelConfig,
   AiUnionTask,
+  AiUnionTaskPage,
+  ApiResponse,
   UploadedAsset,
 } from './types'
 
 const ratios = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9']
 const fallbackResolutions = ['480p', '720p', '1080p']
-const durations = Array.from({ length: 12 }, (_, index) =>
-  String(index + 4)
-)
+const durations = Array.from({ length: 12 }, (_, index) => String(index + 4))
 
 type MentionRange = {
   from: number
@@ -230,8 +227,9 @@ function WorkspacePanel({
     () => models.find((item) => item.model === model),
     [model, models]
   )
-  const resolutionOptions =
-    selectedModel?.resolutions?.length ? selectedModel.resolutions : fallbackResolutions
+  const resolutionOptions = selectedModel?.resolutions?.length
+    ? selectedModel.resolutions
+    : fallbackResolutions
   const modelUnavailable =
     !selectedModel ||
     !selectedModel.channel_available ||
@@ -248,7 +246,9 @@ function WorkspacePanel({
 
   useEffect(() => {
     if (!resolutionOptions.includes(resolution)) {
-      setResolution(resolutionOptions.includes('720p') ? '720p' : resolutionOptions[0])
+      setResolution(
+        resolutionOptions.includes('720p') ? '720p' : resolutionOptions[0]
+      )
     }
   }, [resolution, resolutionOptions])
 
@@ -443,10 +443,7 @@ function WorkspacePanel({
               value={prompt}
               onChange={(event) => {
                 setPrompt(event.target.value)
-                syncMentionMenu(
-                  event.target.value,
-                  event.target.selectionStart
-                )
+                syncMentionMenu(event.target.value, event.target.selectionStart)
               }}
               onClick={(event) =>
                 syncMentionMenu(
@@ -467,7 +464,7 @@ function WorkspacePanel({
               placeholder={t('Type @ to attach uploaded assets')}
             />
             {showAssetMenu && (
-              <div className='bg-popover text-popover-foreground absolute left-3 top-11 z-20 w-72 overflow-hidden rounded-lg border shadow-md'>
+              <div className='bg-popover text-popover-foreground absolute top-11 left-3 z-20 w-72 overflow-hidden rounded-lg border shadow-md'>
                 <div className='text-muted-foreground border-b px-3 py-2 text-xs'>
                   {t('Uploaded assets')}
                 </div>
@@ -622,7 +619,10 @@ function WorkspacePanel({
         <div className='grid gap-3 sm:grid-cols-2'>
           <label className='border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
             <span className='text-sm'>{t('Audio')}</span>
-            <Switch checked={generateAudio} onCheckedChange={setGenerateAudio} />
+            <Switch
+              checked={generateAudio}
+              onCheckedChange={setGenerateAudio}
+            />
           </label>
           <label className='border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2'>
             <span className='text-sm'>{t('Watermark')}</span>
@@ -798,10 +798,14 @@ function MediaActions({ media }: { media: AiUnionMedia }) {
 
 function TaskItem({ task }: { task: AiUnionTask }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [isDeleted, setIsDeleted] = useState(false)
   const shouldPoll = !['SUCCESS', 'FAILURE'].includes(task.status)
   const detailQuery = useQuery({
     queryKey: ['ai-union', 'task', task.task_id],
     queryFn: () => getAiUnionTask(task.task_id),
+    enabled: !isDeleted,
     refetchInterval: (query) => {
       const detail = query.state.data?.data
       if (!detail) return shouldPoll ? 5000 : false
@@ -817,73 +821,160 @@ function TaskItem({ task }: { task: AiUnionTask }) {
   const detail = detailQuery.data?.data
   const currentTask = detail?.task ?? task
   const media = detail?.media ?? []
+  const canDelete = ['SUCCESS', 'FAILURE'].includes(currentTask.status)
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteAiUnionTask(task.task_id),
+    onMutate: async () => {
+      setDeleteOpen(false)
+      setIsDeleted(true)
+      await queryClient.cancelQueries({
+        queryKey: ['ai-union', 'task', task.task_id],
+      })
+      queryClient.removeQueries({
+        queryKey: ['ai-union', 'task', task.task_id],
+      })
+      queryClient.setQueriesData<ApiResponse<AiUnionTaskPage>>(
+        { queryKey: ['ai-union', 'tasks'] },
+        (old) => {
+          if (!old?.data?.items) return old
+          const items = old.data.items.filter(
+            (item) => item.task_id !== task.task_id
+          )
+          if (items.length === old.data.items.length) return old
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              total: Math.max(0, old.data.total - 1),
+              items,
+            },
+          }
+        }
+      )
+    },
+    onSuccess: async (res) => {
+      if (!res.success) {
+        setIsDeleted(false)
+        toast.error(res.message || t('Failed to delete history'))
+        await queryClient.invalidateQueries({ queryKey: ['ai-union', 'tasks'] })
+        return
+      }
+      toast.success(t('History deleted'))
+      await queryClient.invalidateQueries({ queryKey: ['ai-union', 'tasks'] })
+    },
+    onError: async (error) => {
+      setIsDeleted(false)
+      toast.error((error as Error)?.message || t('Failed to delete history'))
+      await queryClient.invalidateQueries({ queryKey: ['ai-union', 'tasks'] })
+    },
+  })
+
+  if (isDeleted) return null
 
   return (
-    <div className='border-border bg-card grid gap-4 rounded-lg border p-4 text-sm lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]'>
-      <div className='min-w-0 space-y-3'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Badge variant={statusVariant(currentTask.status)}>
-            {currentTask.status}
-          </Badge>
-          <span className='text-muted-foreground font-mono text-xs'>
-            {currentTask.task_id}
-          </span>
-        </div>
-        <div className='text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs'>
-          <span>{currentTask.progress || '0%'}</span>
-          <span>{dayjs.unix(currentTask.created_at).format('YYYY-MM-DD HH:mm')}</span>
-          <span>{currentTask.properties?.origin_model_name}</span>
-        </div>
-        {currentTask.fail_reason && (
-          <div className='text-destructive text-sm'>{currentTask.fail_reason}</div>
-        )}
-        <Button
-          type='button'
-          size='sm'
-          variant='outline'
-          onClick={() => void detailQuery.refetch()}
-        >
-          <RefreshCw
-            className={cn('size-3.5', detailQuery.isFetching && 'animate-spin')}
-          />
-          {t('Refresh')}
-        </Button>
-      </div>
-
-      <div className='space-y-3'>
-        {media.length === 0 ? (
-          <div className='text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-sm'>
-            {currentTask.status === 'SUCCESS'
-              ? t('Archiving')
-              : t('No media yet')}
+    <>
+      <div className='border-border bg-card grid gap-4 rounded-lg border p-4 text-sm lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]'>
+        <div className='min-w-0 space-y-3'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge variant={statusVariant(currentTask.status)}>
+              {currentTask.status}
+            </Badge>
+            <span className='text-muted-foreground font-mono text-xs'>
+              {currentTask.task_id}
+            </span>
           </div>
-        ) : (
-          media.map((item) => (
-            <div key={item.id} className='space-y-2 rounded-lg border p-3'>
-              <div className='flex flex-wrap items-center justify-between gap-2'>
-                <div className='flex min-w-0 items-center gap-2'>
-                  {item.kind === 'video' ? (
-                    <FileVideo className='text-muted-foreground size-4 shrink-0' />
-                  ) : (
-                    <ImageIcon className='text-muted-foreground size-4 shrink-0' />
-                  )}
-                  <span className='truncate font-medium'>
-                    {mediaLabel(item, t)}
-                  </span>
-                </div>
-                <Badge variant={statusVariant(item.status)}>
-                  {item.status}
-                </Badge>
-              </div>
-              <div className='text-muted-foreground text-xs'>
-                {formatBytes(item.size_bytes)}
-              </div>
-              <MediaActions media={item} />
+          <div className='text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs'>
+            <span>{currentTask.progress || '0%'}</span>
+            <span>
+              {dayjs.unix(currentTask.created_at).format('YYYY-MM-DD HH:mm')}
+            </span>
+            <span>{currentTask.properties?.origin_model_name}</span>
+          </div>
+          {currentTask.fail_reason && (
+            <div className='text-destructive text-sm'>
+              {currentTask.fail_reason}
             </div>
-          ))
-        )}
+          )}
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              onClick={() => void detailQuery.refetch()}
+            >
+              <RefreshCw
+                className={cn(
+                  'size-3.5',
+                  detailQuery.isFetching && 'animate-spin'
+                )}
+              />
+              {t('Refresh')}
+            </Button>
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              disabled={!canDelete || deleteMutation.isPending}
+              onClick={() => setDeleteOpen(true)}
+              className='text-destructive hover:text-destructive'
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className='size-3.5 animate-spin' />
+              ) : (
+                <Trash2 className='size-3.5' />
+              )}
+              {t('Delete')}
+            </Button>
+          </div>
+        </div>
+
+        <div className='space-y-3'>
+          {media.length === 0 ? (
+            <div className='text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-sm'>
+              {currentTask.status === 'SUCCESS'
+                ? t('Archiving')
+                : t('No media yet')}
+            </div>
+          ) : (
+            media.map((item) => (
+              <div key={item.id} className='space-y-2 rounded-lg border p-3'>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <div className='flex min-w-0 items-center gap-2'>
+                    {item.kind === 'video' ? (
+                      <FileVideo className='text-muted-foreground size-4 shrink-0' />
+                    ) : (
+                      <ImageIcon className='text-muted-foreground size-4 shrink-0' />
+                    )}
+                    <span className='truncate font-medium'>
+                      {mediaLabel(item, t)}
+                    </span>
+                  </div>
+                  <Badge variant={statusVariant(item.status)}>
+                    {item.status}
+                  </Badge>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {formatBytes(item.size_bytes)}
+                </div>
+                <MediaActions media={item} />
+              </div>
+            ))
+          )}
+        </div>
       </div>
-    </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t('Confirm delete')}
+        desc={t(
+          'This will permanently delete this history record and archived media files. Continue?'
+        )}
+        destructive
+        isLoading={deleteMutation.isPending}
+        confirmText={t('Delete')}
+        handleConfirm={() => deleteMutation.mutate()}
+      />
+    </>
   )
 }
 
@@ -920,7 +1011,10 @@ function HistoryPanel() {
             onClick={() => void tasksQuery.refetch()}
           >
             <RefreshCw
-              className={cn('size-3.5', tasksQuery.isFetching && 'animate-spin')}
+              className={cn(
+                'size-3.5',
+                tasksQuery.isFetching && 'animate-spin'
+              )}
             />
             {t('Refresh')}
           </Button>

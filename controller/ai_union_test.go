@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -34,7 +37,7 @@ func setupAIUnionControllerTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
-	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}))
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.AiUnionMedia{}))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
@@ -250,4 +253,98 @@ func TestAIUnionListTasksReturnsPagedResult(t *testing.T) {
 	require.Len(t, response.Data.Items, 2)
 	require.Equal(t, "task_user_7_3", response.Data.Items[0].TaskID)
 	require.Equal(t, "task_user_7_2", response.Data.Items[1].TaskID)
+}
+
+func TestAIUnionGetTaskDoesNotExposeUpstreamVideoURL(t *testing.T) {
+	db := setupAIUnionControllerTestDB(t)
+
+	task := model.Task{
+		TaskID: "task_hidden_video_url",
+		UserId: 7,
+		Action: service.AIUnionTaskAction,
+		Status: model.TaskStatusFailure,
+	}
+	task.SetData(map[string]any{
+		"content": map[string]any{
+			"video_url": "https://download.cloudwise.ai/private.mp4?X-Tos-Signature=secret",
+		},
+	})
+	require.NoError(t, db.Create(&task).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/ai-union/tasks/task_hidden_video_url", nil)
+	ctx.Params = gin.Params{{Key: "task_id", Value: "task_hidden_video_url"}}
+	ctx.Set("id", 7)
+
+	AIUnionGetTask(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.NotContains(t, recorder.Body.String(), "download.cloudwise.ai")
+	require.NotContains(t, recorder.Body.String(), "X-Tos-Signature")
+
+	var response map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	data := response["data"].(map[string]any)
+	taskPayload := data["task"].(map[string]any)
+	require.NotContains(t, taskPayload, "data")
+}
+
+func TestAIUnionDeleteTaskRemovesHistoryMediaAndFiles(t *testing.T) {
+	db := setupAIUnionControllerTestDB(t)
+	mediaDir := t.TempDir()
+	t.Setenv("AI_UNION_MEDIA_DIR", mediaDir)
+
+	require.NoError(t, db.Create(&model.Task{
+		TaskID: "task_delete",
+		UserId: 7,
+		Action: service.AIUnionTaskAction,
+		Status: model.TaskStatusSuccess,
+	}).Error)
+	storagePath := filepath.Join("7", "task_delete", "video-1.mp4")
+	fullPath := service.AIUnionMediaFullPath(storagePath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
+	require.NoError(t, os.WriteFile(fullPath, []byte("video"), 0644))
+	require.NoError(t, db.Create(&model.AiUnionMedia{
+		UserId:      7,
+		TaskID:      "task_delete",
+		Kind:        model.AiUnionMediaKindVideo,
+		Status:      model.AiUnionMediaStatusReady,
+		StoragePath: storagePath,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/ai-union/tasks/task_delete", nil)
+	ctx.Params = gin.Params{{Key: "task_id", Value: "task_delete"}}
+	ctx.Set("id", 7)
+
+	AIUnionDeleteTask(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var taskCount int64
+	require.NoError(t, db.Model(&model.Task{}).Where("task_id = ?", "task_delete").Count(&taskCount).Error)
+	require.Zero(t, taskCount)
+
+	var mediaCount int64
+	require.NoError(t, db.Model(&model.AiUnionMedia{}).Where("task_id = ?", "task_delete").Count(&mediaCount).Error)
+	require.Zero(t, mediaCount)
+	require.NoFileExists(t, fullPath)
+}
+
+func TestBuildAIUnionPublicMediaURLUsesRelativePath(t *testing.T) {
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = "http://localhost:3000"
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:3002/api/ai-union/media/5/token", nil)
+
+	url := buildAIUnionPublicMediaURL(ctx, 5, "token-value")
+
+	require.Equal(t, "/api/ai-union/public/media/5?token=token-value", url)
 }
