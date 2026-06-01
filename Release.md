@@ -18,12 +18,12 @@ bun install
 bun run build 
 ```
 -- classic 经典版本（旧版）
-同default，构建项目，若以后不使用可去除和不更新。
+同default，构建项目。
 
 2. 后端代码部署
 
 1）后端go源代码更新
-下载git库下载zip包到本地
+下载git库下载zip包到本地，也可从当前项目找出增量更新的文件
 2）上传到服务器/services目录
 3）对c6c-api目录进行备份
 ``` bash
@@ -31,6 +31,7 @@ cd services
 cp -r c6c-api c6c-api-[日期时间]
 ```
 4）解压zip包覆盖c6c-api目录
+**注意 ：解压不可删除或清空c6c-api目录下的data目录，需保留data目录下的文件，因为data目录下的文件是生成的视频文件等，不能丢失。**
 ``` bash
 cd services
 # 建议先清空（清空前务必备份下）
